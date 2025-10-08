@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MiauAPI – Background Rectangle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: transparent; font-family: 'Inter', sans-serif;
+    }
+    body { width: 1920px; height: 1080px; }
+
+    /* ==========================================
+       MÓDULO: BACKGROUND RECTANGLE
+       ========================================== */
+    .background-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .background-rectangle {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid rgba(0, 170, 255, 0.71);
+      border-radius: 14px;
+      box-shadow: 0px 0px 20px 2px rgba(0, 170, 255, 0.25);
+      transition: all 0.3s ease;
+    }
+
+    .background-rectangle.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .background-rectangle.hidden {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+
+    /* Animações */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    
+    @keyframes fadeOut {
+      from { opacity: 1; transform: scale(1); }
+      to   { opacity: 0; transform: scale(0.95); }
+    }
+
+    .fade-enter-active { animation: fadeIn 0.3s ease-out; }
+    .fade-leave-active { animation: fadeOut 0.3s ease-in; }
+
+    /* Estilos para diferentes tipos */
+    .background-rectangle.info {
+      border-color: rgba(0, 170, 255, 0.71);
+      box-shadow: 0px 0px 20px 2px rgba(0, 170, 255, 0.25);
+    }
+
+    .background-rectangle.success {
+      border-color: rgba(17, 255, 0, 0.71);
+      box-shadow: 0px 0px 20px 2px rgba(17, 255, 0, 0.25);
+    }
+
+    .background-rectangle.warning {
+      border-color: rgba(238, 255, 0, 0.71);
+      box-shadow: 0px 0px 20px 2px rgba(238, 255, 0, 0.25);
+    }
+
+    .background-rectangle.error {
+      border-color: rgba(255, 0, 0, 0.71);
+      box-shadow: 0px 0px 20px 2px rgba(255, 0, 0, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="background-container">
+      <div 
+        v-for="rect in rectangles" 
+        :key="rect.id"
+        class="background-rectangle"
+        :class="[rect.type, rect.visible ? 'visible' : 'hidden']"
+        :style="{
+          left: rect.x + 'px',
+          top: rect.y + 'px',
+          width: rect.width + 'px',
+          height: rect.height + 'px'
+        }"
+        v-show="rect.visible"
+      ></div>
+    </div>
+  </div>
+
+  <script>
+    console.log('[MiauAPI] Background Rectangle System iniciando...');
+
+    const app = new Vue({
+      el: '#app',
+      data: {
+        rectangles: [],
+        nextId: 1
+      },
+      methods: {
+        createRectangle(x, y, width, height, type = 'info', duration = 5000) {
+          const rect = {
+            id: this.nextId++,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            type: type,
+            visible: true,
+            duration: duration
+          };
+          
+          this.rectangles.push(rect);
+          
+          // Auto-remove após duration
+          if (duration > 0) {
+            setTimeout(() => {
+              this.removeRectangle(rect.id);
+            }, duration);
+          }
+          
+          return rect.id;
+        },
+        
+        removeRectangle(id) {
+          const index = this.rectangles.findIndex(rect => rect.id === id);
+          if (index !== -1) {
+            this.rectangles[index].visible = false;
+            setTimeout(() => {
+              this.rectangles.splice(index, 1);
+            }, 300); // Tempo da animação fadeOut
+          }
+        },
+        
+        updateRectangle(id, x, y, width, height, type) {
+          const rect = this.rectangles.find(r => r.id === id);
+          if (rect) {
+            if (x !== undefined) rect.x = x;
+            if (y !== undefined) rect.y = y;
+            if (width !== undefined) rect.width = width;
+            if (height !== undefined) rect.height = height;
+            if (type !== undefined) rect.type = type;
+          }
+        },
+        
+        clearAll() {
+          this.rectangles.forEach(rect => {
+            rect.visible = false;
+          });
+          setTimeout(() => {
+            this.rectangles = [];
+          }, 300);
+        }
+      }
+    });
+
+    // API Global para Lua
+    window.MiauAPI = {
+      background: {
+        create: (x, y, width, height, type, duration) => {
+          return app.createRectangle(x, y, width, height, type, duration);
+        },
+        remove: (id) => {
+          app.removeRectangle(id);
+        },
+        update: (id, x, y, width, height, type) => {
+          app.updateRectangle(id, x, y, width, height, type);
+        },
+        clear: () => {
+          app.clearAll();
+        }
+      }
+    };
+
+    // Listener para mensagens do Lua
+    window.addEventListener('message', e => {
+      const data = e.data;
+      if (data?.action === 'background') {
+        switch (data.command) {
+          case 'create':
+            const id = app.createRectangle(
+              data.x || 0, 
+              data.y || 0, 
+              data.width || 200, 
+              data.height || 100, 
+              data.type || 'info',
+              data.duration || 5000
+            );
+            // Retorna o ID para o Lua se necessário
+            if (data.returnId) {
+              window.postMessage({ action: 'background', command: 'created', id: id }, '*');
+            }
+            break;
+          case 'remove':
+            app.removeRectangle(data.id);
+            break;
+          case 'update':
+            app.updateRectangle(data.id, data.x, data.y, data.width, data.height, data.type);
+            break;
+          case 'clear':
+            app.clearAll();
+            break;
+        }
+      }
+    });
+
+    console.log('[MiauAPI] Background Rectangle System pronto! ✓');
+  </script>
+</body>
+</html>
